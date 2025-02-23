@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/task_service.dart';
+import '../services/notification_service.dart';
 import '../models/task.dart';
+import '../widgets/notification_widget.dart';
 import 'package:intl/intl.dart';
 
 class TaskScreen extends StatefulWidget {
@@ -12,17 +14,31 @@ class TaskScreen extends StatefulWidget {
 
 class TaskScreenState extends State<TaskScreen> {
   final TaskService _taskService = TaskService();
+  final NotificationService _notificationService = NotificationService();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   List<Task> _tasks = [];
+  List<TaskNotification> _notifications = [];
   Task? _editingTask;
   DateTime _selectedDueDate = DateTime.now().add(const Duration(days: 1));
   int _selectedPriority = 0;
+  bool _isLoadingNotifications = false;
 
   @override
   void initState() {
     super.initState();
     _loadTasks();
+    _loadNotifications();
+    _startPeriodicUpdate();
+  }
+
+  void _startPeriodicUpdate() {
+    Future.delayed(const Duration(minutes: 1), () {
+      if (mounted) {
+        _loadNotifications();
+        _startPeriodicUpdate();
+      }
+    });
   }
 
   Future<void> _loadTasks() async {
@@ -36,6 +52,27 @@ class TaskScreenState extends State<TaskScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString())),
         );
+      }
+    }
+  }
+
+  Future<void> _loadNotifications() async {
+    setState(() {
+      _isLoadingNotifications = true;
+    });
+    try {
+      final notifications = await _notificationService.getNotifications();
+      if (mounted) {
+        setState(() {
+          _notifications = notifications;
+          _isLoadingNotifications = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingNotifications = false;
+        });
       }
     }
   }
@@ -154,6 +191,32 @@ class TaskScreenState extends State<TaskScreen> {
     }
   }
 
+  void _showNotifications() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SizedBox(
+        height: MediaQuery.of(context).size.height * 0.7,
+        child: Column(
+          children: [
+            AppBar(
+              title: const Text('Оповещения'),
+              automaticallyImplyLeading: false,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            Expanded(
+              child: NotificationWidget(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -165,6 +228,38 @@ class TaskScreenState extends State<TaskScreen> {
               icon: const Icon(Icons.cancel),
               onPressed: _cancelEdit,
             ),
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications),
+                onPressed: _showNotifications,
+              ),
+              if (_notifications.where((n) => !n.read).isNotEmpty)
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      _notifications.where((n) => !n.read).length.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
       body: Column(

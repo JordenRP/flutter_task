@@ -82,6 +82,7 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    models.CheckDueTasks()
     log.Printf("Task created successfully: %+v", task)
     json.NewEncoder(w).Encode(task)
 }
@@ -131,6 +132,7 @@ func (h *TaskHandler) Update(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    models.CheckDueTasks()
     log.Printf("Task updated successfully: %+v", task)
     json.NewEncoder(w).Encode(task)
 }

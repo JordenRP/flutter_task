@@ -8,6 +8,8 @@ import (
 	"todo-app/internal/handlers"
 	"todo-app/internal/db"
 	"todo-app/internal/middleware"
+	"time"
+	"todo-app/internal/models"
 )
 
 func corsMiddleware(next http.Handler) http.Handler {
@@ -40,6 +42,7 @@ func main() {
 	jwtSecret := []byte("your-secret-key")
 	authHandler := handlers.NewAuthHandler(string(jwtSecret))
 	taskHandler := handlers.NewTaskHandler()
+	notificationHandler := handlers.NewNotificationHandler()
 
 	r.HandleFunc("/api/auth/login", authHandler.Login).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/auth/register", authHandler.Register).Methods("POST", "OPTIONS")
@@ -51,7 +54,22 @@ func main() {
 	taskRouter.HandleFunc("/{id}", taskHandler.Update).Methods("PUT", "OPTIONS")
 	taskRouter.HandleFunc("/{id}", taskHandler.Delete).Methods("DELETE", "OPTIONS")
 
+	notificationRouter := r.PathPrefix("/api/notifications").Subrouter()
+	notificationRouter.Use(middleware.AuthMiddleware(jwtSecret))
+	notificationRouter.HandleFunc("", notificationHandler.List).Methods("GET", "OPTIONS")
+	notificationRouter.HandleFunc("/{id}/read", notificationHandler.MarkAsRead).Methods("POST", "OPTIONS")
+	notificationRouter.HandleFunc("/check", notificationHandler.CheckDueTasks).Methods("POST", "OPTIONS")
+
 	r.Use(corsMiddleware)
+
+	go func() {
+		ticker := time.NewTicker(15 * time.Minute)
+		for range ticker.C {
+			if err := models.CheckDueTasks(); err != nil {
+				log.Printf("Error checking due tasks: %v", err)
+			}
+		}
+	}()
 
 	log.Println("Server starting on port 8080...")
 	if err := http.ListenAndServe(":8080", r); err != nil {

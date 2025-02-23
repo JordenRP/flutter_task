@@ -55,6 +55,14 @@ func createTables() error {
             created_at TIMESTAMP NOT NULL,
             updated_at TIMESTAMP NOT NULL
         )`,
+        `CREATE TABLE IF NOT EXISTS notifications (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+            message TEXT NOT NULL,
+            created_at TIMESTAMP NOT NULL,
+            read BOOLEAN DEFAULT FALSE
+        )`,
     }
 
     for _, query := range queries {
