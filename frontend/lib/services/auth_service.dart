@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
   static const baseUrl = 'http://localhost:8080/api/auth';
+  static const tokenKey = 'auth_token';
 
   Future<String> login(String email, String password) async {
     final response = await http.post(
@@ -16,7 +18,9 @@ class AuthService {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      return data['token'];
+      final token = data['token'];
+      await _saveToken(token);
+      return token;
     } else {
       throw Exception('Failed to login');
     }
@@ -35,9 +39,21 @@ class AuthService {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      return data['token'];
+      final token = data['token'];
+      await _saveToken(token);
+      return token;
     } else {
       throw Exception('Failed to register');
     }
+  }
+
+  Future<void> _saveToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(tokenKey, token);
+  }
+
+  static Future<String?> getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(tokenKey);
   }
 } 

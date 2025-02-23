@@ -7,6 +7,7 @@ import (
 	"github.com/gorilla/mux"
 	"todo-app/internal/handlers"
 	"todo-app/internal/db"
+	"todo-app/internal/middleware"
 )
 
 func corsMiddleware(next http.Handler) http.Handler {
@@ -36,10 +37,19 @@ func main() {
 
 	r := mux.NewRouter()
 	
-	authHandler := handlers.NewAuthHandler("your-secret-key")
+	jwtSecret := []byte("your-secret-key")
+	authHandler := handlers.NewAuthHandler(string(jwtSecret))
+	taskHandler := handlers.NewTaskHandler()
 
 	r.HandleFunc("/api/auth/login", authHandler.Login).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/auth/register", authHandler.Register).Methods("POST", "OPTIONS")
+
+	taskRouter := r.PathPrefix("/api/tasks").Subrouter()
+	taskRouter.Use(middleware.AuthMiddleware(jwtSecret))
+	taskRouter.HandleFunc("", taskHandler.Create).Methods("POST", "OPTIONS")
+	taskRouter.HandleFunc("", taskHandler.List).Methods("GET", "OPTIONS")
+	taskRouter.HandleFunc("/{id}", taskHandler.Update).Methods("PUT", "OPTIONS")
+	taskRouter.HandleFunc("/{id}", taskHandler.Delete).Methods("DELETE", "OPTIONS")
 
 	r.Use(corsMiddleware)
 

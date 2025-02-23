@@ -19,17 +19,21 @@ class AuthScreenState extends State<AuthScreen> {
   void _submitForm() async {
     if (_formKey.currentState!.validate()) {
       try {
+        String token;
         if (_isLogin) {
-          await _authService.login(
+          token = await _authService.login(
             _emailController.text,
             _passwordController.text,
           );
         } else {
-          await _authService.register(
+          token = await _authService.register(
             _emailController.text,
             _passwordController.text,
             _nameController.text,
           );
+        }
+        if (mounted && token.isNotEmpty) {
+          Navigator.pushReplacementNamed(context, '/tasks');
         }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
