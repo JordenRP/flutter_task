@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/task_service.dart';
 import '../models/task.dart';
+import 'package:intl/intl.dart';
 
 class TaskScreen extends StatefulWidget {
   const TaskScreen({super.key});
@@ -15,6 +16,8 @@ class TaskScreenState extends State<TaskScreen> {
   final _descriptionController = TextEditingController();
   List<Task> _tasks = [];
   Task? _editingTask;
+  DateTime _selectedDueDate = DateTime.now().add(const Duration(days: 1));
+  int _selectedPriority = 0;
 
   @override
   void initState() {
@@ -37,6 +40,20 @@ class TaskScreenState extends State<TaskScreen> {
     }
   }
 
+  Future<void> _selectDueDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDueDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedDueDate = picked;
+      });
+    }
+  }
+
   Future<void> _createOrUpdateTask() async {
     try {
       if (_editingTask != null) {
@@ -45,6 +62,8 @@ class TaskScreenState extends State<TaskScreen> {
           _titleController.text,
           _descriptionController.text,
           _editingTask!.completed,
+          _selectedDueDate,
+          _selectedPriority,
         );
         setState(() {
           final index = _tasks.indexWhere((t) => t.id == _editingTask!.id);
@@ -55,6 +74,8 @@ class TaskScreenState extends State<TaskScreen> {
         final task = await _taskService.createTask(
           _titleController.text,
           _descriptionController.text,
+          _selectedDueDate,
+          _selectedPriority,
         );
         setState(() {
           _tasks.insert(0, task);
@@ -62,6 +83,10 @@ class TaskScreenState extends State<TaskScreen> {
       }
       _titleController.clear();
       _descriptionController.clear();
+      setState(() {
+        _selectedPriority = 0;
+        _selectedDueDate = DateTime.now().add(const Duration(days: 1));
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -76,6 +101,8 @@ class TaskScreenState extends State<TaskScreen> {
       _editingTask = task;
       _titleController.text = task.title;
       _descriptionController.text = task.description;
+      _selectedDueDate = task.dueDate;
+      _selectedPriority = task.priority;
     });
   }
 
@@ -84,6 +111,8 @@ class TaskScreenState extends State<TaskScreen> {
       _editingTask = null;
       _titleController.clear();
       _descriptionController.clear();
+      _selectedDueDate = DateTime.now().add(const Duration(days: 1));
+      _selectedPriority = 0;
     });
   }
 
@@ -94,6 +123,8 @@ class TaskScreenState extends State<TaskScreen> {
         task.title,
         task.description,
         !task.completed,
+        task.dueDate,
+        task.priority,
       );
       setState(() {
         final index = _tasks.indexWhere((t) => t.id == task.id);
@@ -154,6 +185,29 @@ class TaskScreenState extends State<TaskScreen> {
                     labelText: 'Описание',
                   ),
                 ),
+                ListTile(
+                  title: const Text('Срок выполнения'),
+                  subtitle: Text(DateFormat('dd.MM.yyyy').format(_selectedDueDate)),
+                  trailing: const Icon(Icons.calendar_today),
+                  onTap: _selectDueDate,
+                ),
+                DropdownButtonFormField<int>(
+                  value: _selectedPriority,
+                  decoration: const InputDecoration(
+                    labelText: 'Приоритет',
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 0, child: Text('Низкий')),
+                    DropdownMenuItem(value: 1, child: Text('Средний')),
+                    DropdownMenuItem(value: 2, child: Text('Высокий')),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedPriority = value!;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: _createOrUpdateTask,
                   child: Text(_editingTask == null ? 'Добавить задачу' : 'Обновить задачу'),
@@ -170,7 +224,32 @@ class TaskScreenState extends State<TaskScreen> {
                   margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
                   child: ListTile(
                     title: Text(task.title),
-                    subtitle: Text(task.description),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(task.description),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.calendar_today, size: 16, color: task.dueDate.isBefore(DateTime.now()) ? Colors.red : Colors.grey),
+                            const SizedBox(width: 4),
+                            Text(DateFormat('dd.MM.yyyy').format(task.dueDate)),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: task.priorityColor.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                task.priorityText,
+                                style: TextStyle(color: task.priorityColor),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                     leading: Checkbox(
                       value: task.completed,
                       onChanged: (_) => _toggleTaskCompletion(task),

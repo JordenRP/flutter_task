@@ -28,6 +28,11 @@ func InitDB(host, port, user, password, dbname string) error {
         return err
     }
 
+    err = migrateExistingData()
+    if err != nil {
+        return err
+    }
+
     return nil
 }
 
@@ -45,6 +50,8 @@ func createTables() error {
             description TEXT,
             completed BOOLEAN DEFAULT FALSE,
             user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            due_date TIMESTAMP NOT NULL DEFAULT NOW(),
+            priority INTEGER NOT NULL DEFAULT 0,
             created_at TIMESTAMP NOT NULL,
             updated_at TIMESTAMP NOT NULL
         )`,
@@ -56,5 +63,41 @@ func createTables() error {
             return err
         }
     }
+    return nil
+}
+
+func migrateExistingData() error {
+    // Проверяем существование колонок
+    var hasDueDate, hasPriority bool
+    err := DB.QueryRow(`
+        SELECT EXISTS (
+            SELECT 1 
+            FROM information_schema.columns 
+            WHERE table_name = 'tasks' AND column_name = 'due_date'
+        ), EXISTS (
+            SELECT 1 
+            FROM information_schema.columns 
+            WHERE table_name = 'tasks' AND column_name = 'priority'
+        )
+    `).Scan(&hasDueDate, &hasPriority)
+    if err != nil {
+        return err
+    }
+
+    // Добавляем недостающие колонки
+    if !hasDueDate {
+        _, err = DB.Exec(`ALTER TABLE tasks ADD COLUMN due_date TIMESTAMP NOT NULL DEFAULT NOW()`)
+        if err != nil {
+            return err
+        }
+    }
+
+    if !hasPriority {
+        _, err = DB.Exec(`ALTER TABLE tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0`)
+        if err != nil {
+            return err
+        }
+    }
+
     return nil
 } 

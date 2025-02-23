@@ -28,13 +28,15 @@ class TaskService {
     }
   }
 
-  Future<Task> createTask(String title, String description) async {
+  Future<Task> createTask(String title, String description, DateTime dueDate, int priority) async {
     final response = await http.post(
       Uri.parse(baseUrl),
       headers: await _getHeaders(),
       body: jsonEncode({
         'title': title,
         'description': description,
+        'due_date': dueDate.toIso8601String(),
+        'priority': priority,
       }),
     );
 
@@ -45,7 +47,7 @@ class TaskService {
     }
   }
 
-  Future<Task> updateTask(int id, String title, String description, bool completed) async {
+  Future<Task> updateTask(int id, String title, String description, bool completed, DateTime dueDate, int priority) async {
     final response = await http.put(
       Uri.parse('$baseUrl/$id'),
       headers: await _getHeaders(),
@@ -53,6 +55,8 @@ class TaskService {
         'title': title,
         'description': description,
         'completed': completed,
+        'due_date': dueDate.toIso8601String(),
+        'priority': priority,
       }),
     );
 
