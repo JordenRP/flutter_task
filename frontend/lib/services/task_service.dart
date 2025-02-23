@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/task.dart';
+import '../models/category.dart';
 import 'auth_service.dart';
 
 class TaskService {
@@ -14,9 +15,10 @@ class TaskService {
     };
   }
 
-  Future<List<Task>> getTasks() async {
+  Future<List<Task>> getTasks({Category? category}) async {
+    final url = category != null ? '$baseUrl?category_id=${category.id}' : baseUrl;
     final response = await http.get(
-      Uri.parse(baseUrl),
+      Uri.parse(url),
       headers: await _getHeaders(),
     );
 
@@ -28,7 +30,7 @@ class TaskService {
     }
   }
 
-  Future<Task> createTask(String title, String description, DateTime dueDate, int priority) async {
+  Future<Task> createTask(String title, String description, DateTime dueDate, int priority, {Category? category}) async {
     final response = await http.post(
       Uri.parse(baseUrl),
       headers: await _getHeaders(),
@@ -37,6 +39,7 @@ class TaskService {
         'description': description,
         'due_date': dueDate.toIso8601String(),
         'priority': priority,
+        'category_id': category?.id,
       }),
     );
 
@@ -47,7 +50,7 @@ class TaskService {
     }
   }
 
-  Future<Task> updateTask(int id, String title, String description, bool completed, DateTime dueDate, int priority) async {
+  Future<Task> updateTask(int id, String title, String description, bool completed, DateTime dueDate, int priority, {Category? category}) async {
     final response = await http.put(
       Uri.parse('$baseUrl/$id'),
       headers: await _getHeaders(),
@@ -57,6 +60,7 @@ class TaskService {
         'completed': completed,
         'due_date': dueDate.toIso8601String(),
         'priority': priority,
+        'category_id': category?.id,
       }),
     );
 

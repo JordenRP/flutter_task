@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'category.dart';
 
 class Task {
   final int id;
@@ -10,6 +11,7 @@ class Task {
   final int priority;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final Category? category;
 
   Task({
     required this.id,
@@ -21,6 +23,7 @@ class Task {
     required this.priority,
     required this.createdAt,
     required this.updatedAt,
+    this.category,
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
@@ -34,6 +37,7 @@ class Task {
       priority: json['priority'],
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
+      category: json['category'] != null ? Category.fromJson(json['category']) : null,
     );
   }
 
@@ -48,6 +52,7 @@ class Task {
       'priority': priority,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
+      'category': category?.toJson(),
     };
   }
 

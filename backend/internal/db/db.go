@@ -44,12 +44,19 @@ func createTables() error {
             password VARCHAR(255) NOT NULL,
             name VARCHAR(255) NOT NULL
         )`,
+        `CREATE TABLE IF NOT EXISTS categories (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        )`,
         `CREATE TABLE IF NOT EXISTS tasks (
             id SERIAL PRIMARY KEY,
             title VARCHAR(255) NOT NULL,
             description TEXT,
             completed BOOLEAN DEFAULT FALSE,
             user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
             due_date TIMESTAMP NOT NULL DEFAULT NOW(),
             priority INTEGER NOT NULL DEFAULT 0,
             created_at TIMESTAMP NOT NULL,
@@ -75,33 +82,53 @@ func createTables() error {
 }
 
 func migrateExistingData() error {
-    // Проверяем существование колонок
-    var hasDueDate, hasPriority bool
+    // Проверяем существование таблицы categories
+    var hasCategoriesTable bool
     err := DB.QueryRow(`
         SELECT EXISTS (
             SELECT 1 
-            FROM information_schema.columns 
-            WHERE table_name = 'tasks' AND column_name = 'due_date'
-        ), EXISTS (
-            SELECT 1 
-            FROM information_schema.columns 
-            WHERE table_name = 'tasks' AND column_name = 'priority'
+            FROM information_schema.tables 
+            WHERE table_name = 'categories'
         )
-    `).Scan(&hasDueDate, &hasPriority)
+    `).Scan(&hasCategoriesTable)
     if err != nil {
         return err
     }
 
-    // Добавляем недостающие колонки
-    if !hasDueDate {
-        _, err = DB.Exec(`ALTER TABLE tasks ADD COLUMN due_date TIMESTAMP NOT NULL DEFAULT NOW()`)
+    // Если таблица categories не существует, создаем ее
+    if !hasCategoriesTable {
+        _, err = DB.Exec(`
+            CREATE TABLE categories (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        `)
         if err != nil {
             return err
         }
     }
 
-    if !hasPriority {
-        _, err = DB.Exec(`ALTER TABLE tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0`)
+    // Проверяем существование колонки category_id в таблице tasks
+    var hasCategoryId bool
+    err = DB.QueryRow(`
+        SELECT EXISTS (
+            SELECT 1 
+            FROM information_schema.columns 
+            WHERE table_name = 'tasks' AND column_name = 'category_id'
+        )
+    `).Scan(&hasCategoryId)
+    if err != nil {
+        return err
+    }
+
+    // Если колонка category_id не существует, добавляем ее
+    if !hasCategoryId {
+        _, err = DB.Exec(`
+            ALTER TABLE tasks 
+            ADD COLUMN category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL
+        `)
         if err != nil {
             return err
         }

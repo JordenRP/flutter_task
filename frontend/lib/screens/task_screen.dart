@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../services/task_service.dart';
 import '../services/notification_service.dart';
 import '../models/task.dart';
+import '../models/category.dart';
 import '../widgets/notification_widget.dart';
+import '../widgets/category_widget.dart';
 import 'package:intl/intl.dart';
 
 class TaskScreen extends StatefulWidget {
@@ -23,6 +25,8 @@ class TaskScreenState extends State<TaskScreen> {
   DateTime _selectedDueDate = DateTime.now().add(const Duration(days: 1));
   int _selectedPriority = 0;
   bool _isLoadingNotifications = false;
+  Category? _selectedCategory;
+  bool _isCategoryPanelVisible = false;
 
   @override
   void initState() {
@@ -43,7 +47,7 @@ class TaskScreenState extends State<TaskScreen> {
 
   Future<void> _loadTasks() async {
     try {
-      final tasks = await _taskService.getTasks();
+      final tasks = await _taskService.getTasks(category: _selectedCategory);
       setState(() {
         _tasks = tasks;
       });
@@ -101,6 +105,7 @@ class TaskScreenState extends State<TaskScreen> {
           _editingTask!.completed,
           _selectedDueDate,
           _selectedPriority,
+          category: _selectedCategory,
         );
         setState(() {
           final index = _tasks.indexWhere((t) => t.id == _editingTask!.id);
@@ -113,6 +118,7 @@ class TaskScreenState extends State<TaskScreen> {
           _descriptionController.text,
           _selectedDueDate,
           _selectedPriority,
+          category: _selectedCategory,
         );
         setState(() {
           _tasks.insert(0, task);
@@ -140,6 +146,7 @@ class TaskScreenState extends State<TaskScreen> {
       _descriptionController.text = task.description;
       _selectedDueDate = task.dueDate;
       _selectedPriority = task.priority;
+      _selectedCategory = task.category;
     });
   }
 
@@ -150,6 +157,7 @@ class TaskScreenState extends State<TaskScreen> {
       _descriptionController.clear();
       _selectedDueDate = DateTime.now().add(const Duration(days: 1));
       _selectedPriority = 0;
+      _selectedCategory = null;
     });
   }
 
@@ -217,6 +225,19 @@ class TaskScreenState extends State<TaskScreen> {
     );
   }
 
+  void _toggleCategoryPanel() {
+    setState(() {
+      _isCategoryPanelVisible = !_isCategoryPanelVisible;
+    });
+  }
+
+  void _onCategorySelected(Category? category) {
+    setState(() {
+      _selectedCategory = category;
+    });
+    _loadTasks();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -228,6 +249,10 @@ class TaskScreenState extends State<TaskScreen> {
               icon: const Icon(Icons.cancel),
               onPressed: _cancelEdit,
             ),
+          IconButton(
+            icon: const Icon(Icons.category),
+            onPressed: _toggleCategoryPanel,
+          ),
           Stack(
             children: [
               IconButton(
@@ -262,112 +287,137 @@ class TaskScreenState extends State<TaskScreen> {
           ),
         ],
       ),
-      body: Column(
+      body: Row(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
+          if (_isCategoryPanelVisible)
+            CategoryWidget(
+              onCategorySelected: _onCategorySelected,
+              selectedCategory: _selectedCategory,
+            ),
+          Expanded(
             child: Column(
               children: [
-                TextField(
-                  controller: _titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Название',
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _titleController,
+                        decoration: const InputDecoration(
+                          labelText: 'Название',
+                        ),
+                      ),
+                      TextField(
+                        controller: _descriptionController,
+                        decoration: const InputDecoration(
+                          labelText: 'Описание',
+                        ),
+                      ),
+                      ListTile(
+                        title: const Text('Срок выполнения'),
+                        subtitle: Text(DateFormat('dd.MM.yyyy').format(_selectedDueDate)),
+                        trailing: const Icon(Icons.calendar_today),
+                        onTap: _selectDueDate,
+                      ),
+                      DropdownButtonFormField<int>(
+                        value: _selectedPriority,
+                        decoration: const InputDecoration(
+                          labelText: 'Приоритет',
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 0, child: Text('Низкий')),
+                          DropdownMenuItem(value: 1, child: Text('Средний')),
+                          DropdownMenuItem(value: 2, child: Text('Высокий')),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedPriority = value!;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _createOrUpdateTask,
+                        child: Text(_editingTask == null ? 'Добавить задачу' : 'Обновить задачу'),
+                      ),
+                    ],
                   ),
                 ),
-                TextField(
-                  controller: _descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Описание',
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _tasks.length,
+                    itemBuilder: (context, index) {
+                      final task = _tasks[index];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                        child: ListTile(
+                          title: Text(task.title),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(task.description),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(Icons.calendar_today, size: 16, color: task.dueDate.isBefore(DateTime.now()) ? Colors.red : Colors.grey),
+                                  const SizedBox(width: 4),
+                                  Text(DateFormat('dd.MM.yyyy').format(task.dueDate)),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: task.priorityColor.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      task.priorityText,
+                                      style: TextStyle(color: task.priorityColor),
+                                    ),
+                                  ),
+                                  if (task.category != null) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.blue.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        task.category!.name,
+                                        style: const TextStyle(color: Colors.blue),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ),
+                          leading: Checkbox(
+                            value: task.completed,
+                            onChanged: (_) => _toggleTaskCompletion(task),
+                          ),
+                          trailing: Container(
+                            width: 100,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit, color: Colors.blue),
+                                  onPressed: () => _editTask(task),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  onPressed: () => _deleteTask(task),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                ),
-                ListTile(
-                  title: const Text('Срок выполнения'),
-                  subtitle: Text(DateFormat('dd.MM.yyyy').format(_selectedDueDate)),
-                  trailing: const Icon(Icons.calendar_today),
-                  onTap: _selectDueDate,
-                ),
-                DropdownButtonFormField<int>(
-                  value: _selectedPriority,
-                  decoration: const InputDecoration(
-                    labelText: 'Приоритет',
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 0, child: Text('Низкий')),
-                    DropdownMenuItem(value: 1, child: Text('Средний')),
-                    DropdownMenuItem(value: 2, child: Text('Высокий')),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedPriority = value!;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _createOrUpdateTask,
-                  child: Text(_editingTask == null ? 'Добавить задачу' : 'Обновить задачу'),
                 ),
               ],
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _tasks.length,
-              itemBuilder: (context, index) {
-                final task = _tasks[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                  child: ListTile(
-                    title: Text(task.title),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(task.description),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(Icons.calendar_today, size: 16, color: task.dueDate.isBefore(DateTime.now()) ? Colors.red : Colors.grey),
-                            const SizedBox(width: 4),
-                            Text(DateFormat('dd.MM.yyyy').format(task.dueDate)),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: task.priorityColor.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                task.priorityText,
-                                style: TextStyle(color: task.priorityColor),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    leading: Checkbox(
-                      value: task.completed,
-                      onChanged: (_) => _toggleTaskCompletion(task),
-                    ),
-                    trailing: Container(
-                      width: 100,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.blue),
-                            onPressed: () => _editTask(task),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => _deleteTask(task),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
             ),
           ),
         ],

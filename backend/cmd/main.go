@@ -14,9 +14,11 @@ import (
 
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "*")
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -38,11 +40,13 @@ func main() {
 	}
 
 	r := mux.NewRouter()
+	r.Use(corsMiddleware)
 	
 	jwtSecret := []byte("your-secret-key")
 	authHandler := handlers.NewAuthHandler(string(jwtSecret))
 	taskHandler := handlers.NewTaskHandler()
 	notificationHandler := handlers.NewNotificationHandler()
+	categoryHandler := handlers.NewCategoryHandler()
 
 	r.HandleFunc("/api/auth/login", authHandler.Login).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/auth/register", authHandler.Register).Methods("POST", "OPTIONS")
@@ -54,13 +58,19 @@ func main() {
 	taskRouter.HandleFunc("/{id}", taskHandler.Update).Methods("PUT", "OPTIONS")
 	taskRouter.HandleFunc("/{id}", taskHandler.Delete).Methods("DELETE", "OPTIONS")
 
+	categoryRouter := r.PathPrefix("/api/categories").Subrouter()
+	categoryRouter.Use(middleware.AuthMiddleware(jwtSecret))
+	categoryRouter.HandleFunc("", categoryHandler.List).Methods("GET", "OPTIONS")
+	categoryRouter.HandleFunc("", categoryHandler.Create).Methods("POST", "OPTIONS")
+	categoryRouter.HandleFunc("/{id}", categoryHandler.Delete).Methods("DELETE", "OPTIONS")
+	categoryRouter.HandleFunc("/{id}/tasks", categoryHandler.GetTasks).Methods("GET", "OPTIONS")
+	categoryRouter.HandleFunc("/tasks/{id}", categoryHandler.UpdateTaskCategory).Methods("PUT", "OPTIONS")
+
 	notificationRouter := r.PathPrefix("/api/notifications").Subrouter()
 	notificationRouter.Use(middleware.AuthMiddleware(jwtSecret))
 	notificationRouter.HandleFunc("", notificationHandler.List).Methods("GET", "OPTIONS")
 	notificationRouter.HandleFunc("/{id}/read", notificationHandler.MarkAsRead).Methods("POST", "OPTIONS")
 	notificationRouter.HandleFunc("/check", notificationHandler.CheckDueTasks).Methods("POST", "OPTIONS")
-
-	r.Use(corsMiddleware)
 
 	go func() {
 		ticker := time.NewTicker(15 * time.Minute)
