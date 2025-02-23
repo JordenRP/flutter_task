@@ -12,6 +12,21 @@ type Category struct {
     CreatedAt time.Time `json:"created_at"`
 }
 
+func GetCategory(id, userID uint) (*Category, error) {
+    var category Category
+    err := db.DB.QueryRow(
+        `SELECT id, name, user_id, created_at 
+         FROM categories 
+         WHERE id = $1 AND user_id = $2`,
+        id, userID,
+    ).Scan(&category.ID, &category.Name, &category.UserID, &category.CreatedAt)
+
+    if err != nil {
+        return nil, err
+    }
+    return &category, nil
+}
+
 func CreateCategory(name string, userID uint) (*Category, error) {
     var category Category
     err := db.DB.QueryRow(
@@ -75,10 +90,12 @@ func DeleteCategory(id, userID uint) error {
 
 func GetTasksByCategory(categoryID, userID uint) ([]Task, error) {
     rows, err := db.DB.Query(
-        `SELECT id, title, description, completed, user_id, due_date, priority, created_at, updated_at 
-         FROM tasks 
-         WHERE category_id = $1 AND user_id = $2 
-         ORDER BY due_date ASC, priority DESC, created_at DESC`,
+        `SELECT t.id, t.title, t.description, t.completed, t.user_id, t.category_id, t.due_date, t.priority, t.created_at, t.updated_at,
+                c.id, c.name, c.user_id, c.created_at
+         FROM tasks t
+         LEFT JOIN categories c ON t.category_id = c.id
+         WHERE t.category_id = $1 AND t.user_id = $2 
+         ORDER BY t.due_date ASC, t.priority DESC, t.created_at DESC`,
         categoryID, userID,
     )
     if err != nil {
@@ -89,12 +106,19 @@ func GetTasksByCategory(categoryID, userID uint) ([]Task, error) {
     var tasks []Task
     for rows.Next() {
         var task Task
+        var category Category
+        var categoryID *uint
         err := rows.Scan(
-            &task.ID, &task.Title, &task.Description, &task.Completed,
-            &task.UserID, &task.DueDate, &task.Priority, &task.CreatedAt, &task.UpdatedAt,
+            &task.ID, &task.Title, &task.Description, &task.Completed, &task.UserID, &categoryID,
+            &task.DueDate, &task.Priority, &task.CreatedAt, &task.UpdatedAt,
+            &category.ID, &category.Name, &category.UserID, &category.CreatedAt,
         )
         if err != nil {
             return nil, err
+        }
+        task.CategoryID = categoryID
+        if categoryID != nil {
+            task.Category = &category
         }
         tasks = append(tasks, task)
     }

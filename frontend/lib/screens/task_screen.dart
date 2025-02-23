@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/task_service.dart';
 import '../services/notification_service.dart';
+import '../services/category_service.dart';
 import '../models/task.dart';
 import '../models/category.dart';
 import '../widgets/notification_widget.dart';
@@ -17,6 +18,7 @@ class TaskScreen extends StatefulWidget {
 class TaskScreenState extends State<TaskScreen> {
   final TaskService _taskService = TaskService();
   final NotificationService _notificationService = NotificationService();
+  final CategoryService _categoryService = CategoryService();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   List<Task> _tasks = [];
@@ -111,6 +113,7 @@ class TaskScreenState extends State<TaskScreen> {
           final index = _tasks.indexWhere((t) => t.id == _editingTask!.id);
           _tasks[index] = updatedTask;
           _editingTask = null;
+          _selectedCategory = null;
         });
       } else {
         final task = await _taskService.createTask(
@@ -129,6 +132,7 @@ class TaskScreenState extends State<TaskScreen> {
       setState(() {
         _selectedPriority = 0;
         _selectedDueDate = DateTime.now().add(const Duration(days: 1));
+        _selectedCategory = null;
       });
     } catch (e) {
       if (mounted) {
@@ -333,6 +337,63 @@ class TaskScreenState extends State<TaskScreen> {
                           setState(() {
                             _selectedPriority = value!;
                           });
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      FutureBuilder<List<Category>>(
+                        future: _categoryService.getCategories(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const CircularProgressIndicator();
+                          }
+                          if (snapshot.hasError) {
+                            return Text('Ошибка: ${snapshot.error}');
+                          }
+                          final categories = snapshot.data ?? [];
+                          
+                          // Проверяем, существует ли выбранная категория в списке
+                          final selectedExists = _selectedCategory == null || 
+                              categories.any((c) => c.id == _selectedCategory!.id);
+                          
+                          // Если выбранная категория не существует, сбрасываем её
+                          if (!selectedExists && _selectedCategory != null) {
+                            Future.microtask(() => setState(() {
+                              _selectedCategory = null;
+                            }));
+                          }
+                          
+                          return DropdownButtonFormField<Category?>(
+                            value: selectedExists ? _selectedCategory : null,
+                            decoration: const InputDecoration(
+                              labelText: 'Категория',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: [
+                              const DropdownMenuItem<Category?>(
+                                value: null,
+                                child: Text('Без категории'),
+                              ),
+                              ...categories.map((category) {
+                                return DropdownMenuItem<Category?>(
+                                  value: category,
+                                  child: Text(category.name),
+                                );
+                              }).toList(),
+                            ],
+                            onChanged: (Category? newValue) {
+                              setState(() {
+                                _selectedCategory = newValue;
+                              });
+                            },
+                            selectedItemBuilder: (BuildContext context) {
+                              return [null, ...categories].map<Widget>((Category? category) {
+                                if (category == null) {
+                                  return const Text('Без категории');
+                                }
+                                return Text(category.name);
+                              }).toList();
+                            },
+                          );
                         },
                       ),
                       const SizedBox(height: 16),

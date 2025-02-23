@@ -16,7 +16,10 @@ class TaskService {
   }
 
   Future<List<Task>> getTasks({Category? category}) async {
-    final url = category != null ? '$baseUrl?category_id=${category.id}' : baseUrl;
+    final url = category != null 
+        ? 'http://localhost:8080/api/categories/${category.id}/tasks'
+        : baseUrl;
+    
     final response = await http.get(
       Uri.parse(url),
       headers: await _getHeaders(),

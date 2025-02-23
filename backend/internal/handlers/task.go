@@ -19,6 +19,7 @@ type CreateTaskRequest struct {
     Description string `json:"description"`
     DueDate     string `json:"due_date"`
     Priority    int    `json:"priority"`
+    CategoryID  *uint  `json:"category_id"`
 }
 
 type UpdateTaskRequest struct {
@@ -27,6 +28,7 @@ type UpdateTaskRequest struct {
     Completed   bool   `json:"completed"`
     DueDate     string `json:"due_date"`
     Priority    int    `json:"priority"`
+    CategoryID  *uint  `json:"category_id"`
 }
 
 func NewTaskHandler() *TaskHandler {
@@ -75,7 +77,7 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
     }
 
     userID := getUserIDFromToken(r)
-    task, err := models.CreateTask(req.Title, req.Description, userID, dueDate, models.Priority(req.Priority))
+    task, err := models.CreateTask(req.Title, req.Description, userID, dueDate, models.Priority(req.Priority), req.CategoryID)
     if err != nil {
         log.Printf("Error creating task: %v", err)
         http.Error(w, "Could not create task", http.StatusInternalServerError)
@@ -125,7 +127,7 @@ func (h *TaskHandler) Update(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    task, err := models.UpdateTask(uint(taskID), req.Title, req.Description, req.Completed, dueDate, models.Priority(req.Priority))
+    task, err := models.UpdateTask(uint(taskID), req.Title, req.Description, req.Completed, dueDate, models.Priority(req.Priority), req.CategoryID)
     if err != nil {
         log.Printf("Error updating task: %v", err)
         http.Error(w, "Could not update task", http.StatusInternalServerError)
